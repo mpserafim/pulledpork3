@@ -34,6 +34,7 @@ log = logger.Logger()
 
 # Rule regex patterns
 RULE_REGEX = re.compile(r'^(#\s*)?(\w+)\s(.*\(.+sid:(\d+);.+\))\s*$')
+RULE_META_POLICY = re.compile(r'metadata:(.+?);')
 RULE_GID_REGEX = re.compile(r'gid:(\d+);')
 RULE_REV_REGEX = re.compile(r'rev:(\d+);')
 POLICY_RULE_REGEX = re.compile(r'^(\w+) \(gid:(\d+?); sid:(\d+?); (\w+);\)$')
@@ -300,6 +301,7 @@ class Rule:
         'action',
         'state',
         'metadata',
+        'metapolicy'
     ]
 
     def __init__(self, rule, **metadata):
@@ -335,6 +337,18 @@ class Rule:
         self.gid = gid[1] if gid is not None else '1'
         rev = RULE_REV_REGEX.search(rule)
         self.rev = rev[1] if rev is not None else '0'
+
+        self.metapolicy = dict()
+
+        metapolicy = RULE_META_POLICY.search(rule)
+
+        if metapolicy:
+            ms = metapolicy[1].split(',')
+            for p in ms:
+                p1 = p.split()
+                if len(p1) > 2:
+                    if p1[0] == 'policy':
+                        self.metapolicy[p1[1].replace('-ips', '')] = p1[2]
 
     def __repr__(self):
         return f'Rule(rule_id:{self.rule_id}, action:{self.action}, state:{"ENABLED" if self.state else "DISABLED"})'
@@ -716,6 +730,9 @@ class Rules:
             policy_rule = policy.rules.get(rule_id)
             if policy_rule:
                 rule.state = policy_rule['state']
+                if policy.name in rule.metapolicy:
+                    rule.action = rule.metapolicy[policy.name]
+
             else:
                 rule.state = False
 
